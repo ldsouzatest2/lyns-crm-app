@@ -24,11 +24,27 @@ st.markdown("""
 def init_google_sheets():
     try:
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds = ServiceAccountCredentials.from_json_keyfile_name('google_credentials.json', scope)
-        client = gspread.authorize(creds)
         
-        with open('sheets_config.json', 'r') as f:
-            config = json.load(f)
+        # Check if running on Streamlit Cloud (secrets available) or locally
+        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
+            # Running on Streamlit Cloud - use secrets
+            creds_dict = dict(st.secrets['gcp_service_account'])
+            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+            client = gspread.authorize(creds)
+            
+            config = {
+                'users_sheet_id': st.secrets['sheets']['users_sheet_id'],
+                'clients_sheet_id': st.secrets['sheets']['clients_sheet_id'],
+                'listings_sheet_id': st.secrets['sheets']['listings_sheet_id'],
+                'deals_sheet_id': st.secrets['sheets']['deals_sheet_id']
+            }
+        else:
+            # Running locally - use files
+            creds = ServiceAccountCredentials.from_json_keyfile_name('google_credentials.json', scope)
+            client = gspread.authorize(creds)
+            
+            with open('sheets_config.json', 'r') as f:
+                config = json.load(f)
         
         return client, config
     except Exception as e:
@@ -1004,6 +1020,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 

@@ -1,0 +1,23 @@
+﻿# Credentials - NEVER commit these!
+google_credentials.json
+sheets_config.json
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Environment
+.env
+venv/
+env/
