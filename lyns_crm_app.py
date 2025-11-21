@@ -352,6 +352,28 @@ def update_client_status(client_id, new_status):
     # Save to Google Sheets
     if st.session_state.gs_client and st.session_state.gs_config:
         save_to_sheets(st.session_state.gs_client, st.session_state.gs_config['clients_sheet_id'], st.session_state.clients)
+    
+    # Send email notification to admin about status update
+    client = st.session_state.clients[st.session_state.clients['Client_ID'] == client_id]
+    if not client.empty:
+        client_info = client.iloc[0]
+        admin_users = st.session_state.users[st.session_state.users['Role'] == 'Admin']
+        if not admin_users.empty:
+            admin_email = admin_users.iloc[0]['Email']
+            subject = f"Client Status Updated: {client_info['Client_Name']}"
+            body = f"""
+            <html>
+            <body>
+            <h2>Client Status Updated</h2>
+            <p><strong>Client:</strong> {client_info['Client_Name']} ({client_id})</p>
+            <p><strong>New Status:</strong> {new_status}</p>
+            <p><strong>Assigned To:</strong> {client_info['Assigned_To']}</p>
+            <p><strong>Contact:</strong> {client_info['Contact_Number']}</p>
+            <p>Check your CRM for details.</p>
+            </body>
+            </html>
+            """
+            send_email_notification(admin_email, subject, body)
 
 def update_listing_status(listing_id, new_status, shown_to_clients=''):
     st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Listing_Status'] = new_status
@@ -1080,6 +1102,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
