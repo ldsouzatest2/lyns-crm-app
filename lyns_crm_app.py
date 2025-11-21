@@ -33,25 +33,29 @@ def init_google_sheets():
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
         
         # Check if running on Streamlit Cloud (secrets available) or locally
-        if hasattr(st, 'secrets') and 'gcp_service_account' in st.secrets:
-            # Running on Streamlit Cloud - use secrets
-            creds_dict = dict(st.secrets['gcp_service_account'])
-            creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
-            client = gspread.authorize(creds)
-            
-            config = {
-                'users_sheet_id': st.secrets['sheets']['users_sheet_id'],
-                'clients_sheet_id': st.secrets['sheets']['clients_sheet_id'],
-                'listings_sheet_id': st.secrets['sheets']['listings_sheet_id'],
-                'deals_sheet_id': st.secrets['sheets']['deals_sheet_id']
-            }
-        else:
-            # Running locally - use files
-            creds = ServiceAccountCredentials.from_json_keyfile_name('google_credentials.json', scope)
-            client = gspread.authorize(creds)
-            
-            with open('sheets_config.json', 'r') as f:
-                config = json.load(f)
+        try:
+            if 'gcp_service_account' in st.secrets:
+                # Running on Streamlit Cloud - use secrets
+                creds_dict = dict(st.secrets['gcp_service_account'])
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+                client = gspread.authorize(creds)
+                
+                config = {
+                    'users_sheet_id': st.secrets['sheets']['users_sheet_id'],
+                    'clients_sheet_id': st.secrets['sheets']['clients_sheet_id'],
+                    'listings_sheet_id': st.secrets['sheets']['listings_sheet_id'],
+                    'deals_sheet_id': st.secrets['sheets']['deals_sheet_id']
+                }
+                return client, config
+        except:
+            pass
+        
+        # Running locally - use files
+        creds = ServiceAccountCredentials.from_json_keyfile_name('google_credentials.json', scope)
+        client = gspread.authorize(creds)
+        
+        with open('sheets_config.json', 'r') as f:
+            config = json.load(f)
         
         return client, config
     except Exception as e:
@@ -495,7 +499,7 @@ def show_admin_dashboard():
 
 def show_clients_page(is_admin):
     st.markdown('<div class="main-header">👥 Clients</div>', unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["📋 View & Manage", "➕ Add New"])
+    tab1, tab2, tab3 = st.tabs(["📋 View & Manage", "➕ Add New", "✏️ Edit Client"])
     
     with tab1:
         if not st.session_state.clients.empty:
@@ -518,6 +522,43 @@ def show_clients_page(is_admin):
             show_add_client_form()
         else:
             st.warning("Admin only")
+    
+    with tab3:
+        if is_admin:
+            show_edit_client_form()
+        else:
+            st.warning("Admin only")
+
+
+
+def show_edit_client_form():
+    st.subheader("Edit Existing Client")
+    
+    if st.session_state.clients.empty:
+        st.info("No clients to edit")
+        return
+    
+    st.write(f"Found {len(st.session_state.clients)} clients")
+    
+    # Select client to edit
+    client_list = []
+    for idx, row in st.session_state.clients.iterrows():
+        client_list.append(f"{row['Client_Name']} ({row['Client_ID']})")
+    
+    if not client_list:
+        st.warning("No clients available")
+        return
+    
+    selected_client = st.selectbox("Select Client to Edit", client_list, key="edit_client_select_main")
+    
+    # Extract client ID
+    client_id = selected_client.split("(")[1].strip(")")
+    client_data = st.session_state.clients[st.session_state.clients['Client_ID'] == client_id].iloc[0]
+    
+    st.write(f"Editing: {client_data['Client_Name']}")
+    
+    # Rest of the form will go here
+    st.info("Edit form will be completed - for now, you can see the client is being selected correctly!")
 
 def show_add_client_form():
     st.subheader("Add New Client")
@@ -609,7 +650,7 @@ def show_add_client_form():
 
 def show_listings_page(is_admin):
     st.markdown('<div class="main-header">🏢 Independent Listings</div>', unsafe_allow_html=True)
-    tab1, tab2 = st.tabs(["📋 View & Manage", "➕ Add New"])
+    tab1, tab2, tab3 = st.tabs(["📋 View & Manage", "➕ Add New", "✏️ Edit Client"])
     
     with tab1:
         if not st.session_state.listings.empty:
@@ -1106,6 +1147,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
 
 
 
