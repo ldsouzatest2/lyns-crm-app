@@ -668,6 +668,33 @@ def show_edit_client_form():
                 if st.session_state.gs_client and st.session_state.gs_config:
                     save_to_sheets(st.session_state.gs_client, st.session_state.gs_config['clients_sheet_id'], st.session_state.clients)
                 
+                # Send email notification if assigned to a partner (and assignment changed)
+                if assigned != client['Assigned_To'] and assigned != 'Unassigned' and assigned != 'Admin':
+                    partner = st.session_state.users[st.session_state.users['Full_Name'] == assigned]
+                    if not partner.empty:
+                        partner_email = partner.iloc[0]['Email']
+                        subject = f"New Client Assigned: {name}"
+                        body = f"""
+                        <html>
+                        <body>
+                        <h2>New Client Assigned to You</h2>
+                        <p>Hi {assigned},</p>
+                        <p>A client has been assigned to you:</p>
+                        <ul>
+                        <li><strong>Client Name:</strong> {name}</li>
+                        <li><strong>Contact:</strong> {contact}</li>
+                        <li><strong>Type:</strong> {client_type}</li>
+                        <li><strong>Property:</strong> {property_category} - {property_type}</li>
+                        <li><strong>Budget:</strong> {currency} {bmin} - {bmax}</li>
+                        <li><strong>Location:</strong> {location_str}</li>
+                        </ul>
+                        <p>Please follow up with the client.</p>
+                        <p><strong>Client ID:</strong> {client_id}</p>
+                        </body>
+                        </html>
+                        """
+                        send_email_notification(partner_email, subject, body)
+                
                 st.success(f"✅ Client {name} updated!")
                 st.balloons()
                 st.rerun()
@@ -1482,6 +1509,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
