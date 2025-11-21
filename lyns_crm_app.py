@@ -19,6 +19,10 @@ st.markdown("""
     <style>
     .main-header {font-size: 2.5rem; font-weight: bold; color: #1f77b4; margin-bottom: 1rem;}
     .metric-card {background-color: #f0f2f6; padding: 1rem; border-radius: 0.5rem; border-left: 4px solid #1f77b4;}
+    .stDeployButton {display: none;}
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
 
@@ -1102,6 +1106,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
