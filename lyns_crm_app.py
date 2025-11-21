@@ -67,7 +67,7 @@ def send_email_notification(to_email, subject, body):
         sender_password = st.secrets['email']['sender_password']
         
         msg = MIMEMultipart()
-        msg['From'] = sender_email
+        msg['From'] = f"Lyns Estate Agency <{sender_email}>"
         msg['To'] = to_email
         msg['Subject'] = subject
         
@@ -1102,6 +1102,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
