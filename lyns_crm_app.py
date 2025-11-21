@@ -499,7 +499,7 @@ def show_admin_dashboard():
 
 def show_clients_page(is_admin):
     st.markdown('<div class="main-header">👥 Clients</div>', unsafe_allow_html=True)
-    tab1, tab2, tab3 = st.tabs(["📋 View & Manage", "➕ Add New", "✏️ Edit Client"])
+    tab1, tab2, tab3 = st.tabs(["📋 View & Manage", "➕ Add New", "✏️ Edit Listing"])
     
     with tab1:
         if not st.session_state.clients.empty:
@@ -531,6 +531,7 @@ def show_clients_page(is_admin):
 
 
 
+
 def show_edit_client_form():
     st.subheader("Edit Existing Client")
     
@@ -538,27 +539,140 @@ def show_edit_client_form():
         st.info("No clients to edit")
         return
     
-    st.write(f"Found {len(st.session_state.clients)} clients")
+    # Select client
+    client_options = {f"{r['Client_Name']} ({r['Client_ID']})": r['Client_ID'] 
+                     for _, r in st.session_state.clients.iterrows()}
+    selected = st.selectbox("Select Client to Edit", list(client_options.keys()), key="edit_client_sel")
+    client_id = client_options[selected]
+    client = st.session_state.clients[st.session_state.clients['Client_ID'] == client_id].iloc[0]
     
-    # Select client to edit
-    client_list = []
-    for idx, row in st.session_state.clients.iterrows():
-        client_list.append(f"{row['Client_Name']} ({row['Client_ID']})")
+    # Pre-select values outside form for dynamic updates
+    client_type_temp = st.selectbox("Client Type *", ["Sale", "Rental"],
+                                   index=0 if client['Client_Type'] == 'Sale' else 1, key="edit_ct")
+    property_category_temp = st.selectbox("Property Category *", ["Residential", "Commercial"],
+                                         index=0 if client['Property_Category'] == 'Residential' else 1, key="edit_pc")
     
-    if not client_list:
-        st.warning("No clients available")
-        return
-    
-    selected_client = st.selectbox("Select Client to Edit", client_list, key="edit_client_select_main")
-    
-    # Extract client ID
-    client_id = selected_client.split("(")[1].strip(")")
-    client_data = st.session_state.clients[st.session_state.clients['Client_ID'] == client_id].iloc[0]
-    
-    st.write(f"Editing: {client_data['Client_Name']}")
-    
-    # Rest of the form will go here
-    st.info("Edit form will be completed - for now, you can see the client is being selected correctly!")
+    with st.form("edit_client_form_main"):
+        st.info(f"Editing: **{client['Client_Name']}** ({client_id})")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            name = st.text_input("Name *", value=client['Client_Name'])
+            contact = st.text_input("Contact *", value=client['Contact_Number'])
+            email = st.text_input("Email", value=client['Email'])
+        with col2:
+            client_type = client_type_temp
+            property_category = property_category_temp
+            
+            if property_category == "Residential":
+                ptypes = ["Apartment", "Villa", "Independent House", "Penthouse", "Studio"]
+            else:
+                ptypes = ["Office Space", "Warehouse", "Shop/Showroom", "Land/Plot", "Industrial Unit", "Co-working Space"]
+            
+            try:
+                pidx = ptypes.index(client['Property_Type'])
+            except:
+                pidx = 0
+            property_type = st.selectbox("Property Type *", ptypes, index=pidx)
+        
+        furnishing = None
+        if property_category == "Residential":
+            furn_opts = ["Furnished", "Semi-Furnished", "Unfurnished"]
+            try:
+                fidx = furn_opts.index(client['Furnishing_Status'])
+            except:
+                fidx = 0
+            furnishing = st.selectbox("Furnishing *", furn_opts, index=fidx)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            curr_opts = ["₹ Rupees", "₹ Lakhs", "₹ Crores"]
+            cidx = curr_opts.index(client['Budget_Currency']) if client['Budget_Currency'] in curr_opts else 0
+            currency = st.selectbox("Currency *", curr_opts, index=cidx)
+        with col2:
+            bmin = st.number_input("Min *", value=float(client['Budget_Min']))
+        with col3:
+            bmax = st.number_input("Max *", value=float(client['Budget_Max']))
+        
+        curr_locs = client['Location_Preference'].split(", ") if client['Location_Preference'] else []
+        location = st.multiselect("Location *", LOCATIONS, default=[l for l in curr_locs if l in LOCATIONS])
+        
+        if property_category == "Residential":
+            bhk_opts = ["Studio", "1 BHK", "2 BHK", "3 BHK", "4 BHK", "5+ BHK"]
+            try:
+                bidx = bhk_opts.index(client['BHK_Requirement'])
+            except:
+                bidx = 0
+            bhk = st.selectbox("BHK *", bhk_opts, index=bidx)
+        else:
+            bhk = st.text_input("Size", value=client['BHK_Requirement'])
+        
+        requirements = st.text_area("Requirements", value=client['Requirements_Notes'])
+        
+        poss_date = None
+        if client_type == "Rental" and client['Possession_Date']:
+            try:
+                poss_date = datetime.strptime(client['Possession_Date'], '%Y-%m-%d').date()
+                poss_date = st.date_input("Possession Date *", value=poss_date, min_value=date.today())
+            except:
+                pass
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            src_opts = ["SquareYards", "Referral", "Direct", "Website", "Other"]
+            sidx = src_opts.index(client['Source']) if client['Source'] in src_opts else 0
+            source = st.selectbox("Source *", src_opts, index=sidx)
+        with col2:
+            partners = st.session_state.users[st.session_state.users['Role'] == 'Partner']['Full_Name'].tolist()
+            assign_opts = ["Unassigned", "Admin"] + partners
+            try:
+                aidx = assign_opts.index(client['Assigned_To'])
+            except:
+                aidx = 0
+            assigned = st.selectbox("Assign To", assign_opts, index=aidx)
+        with col3:
+            pri_opts = ["Low", "Medium", "High"]
+            pridx = pri_opts.index(client['Priority']) if client['Priority'] in pri_opts else 0
+            priority = st.selectbox("Priority", pri_opts, index=pridx)
+        
+        stat_opts = ["New Lead", "Contacted", "Site Visit Scheduled", "Site Visit Done", "Interested", 
+                    "Negotiation", "Deal in Progress", "Deal Closed", "On Hold", "Not Interested"]
+        try:
+            stidx = stat_opts.index(client['Status'])
+        except:
+            stidx = 0
+        status = st.selectbox("Status", stat_opts, index=stidx)
+        
+        if st.form_submit_button("✅ Update Client", use_container_width=True):
+            if name and contact and location:
+                location_str = ", ".join(location)
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Client_Name'] = name
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Contact_Number'] = contact
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Email'] = email
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Client_Type'] = client_type
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Property_Category'] = property_category
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Property_Type'] = property_type
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Furnishing_Status'] = furnishing if furnishing else 'N/A'
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Budget_Min'] = bmin
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Budget_Max'] = bmax
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Budget_Currency'] = currency
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Location_Preference'] = location_str
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'BHK_Requirement'] = bhk
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Requirements_Notes'] = requirements
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Possession_Date'] = poss_date.strftime('%Y-%m-%d') if poss_date else ''
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Assigned_To'] = assigned
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Source'] = source
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Priority'] = priority
+                st.session_state.clients.loc[st.session_state.clients['Client_ID'] == client_id, 'Status'] = status
+                
+                if st.session_state.gs_client and st.session_state.gs_config:
+                    save_to_sheets(st.session_state.gs_client, st.session_state.gs_config['clients_sheet_id'], st.session_state.clients)
+                
+                st.success(f"✅ Client {name} updated!")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error("❌ Fill required fields")
 
 def show_add_client_form():
     st.subheader("Add New Client")
@@ -650,7 +764,7 @@ def show_add_client_form():
 
 def show_listings_page(is_admin):
     st.markdown('<div class="main-header">🏢 Independent Listings</div>', unsafe_allow_html=True)
-    tab1, tab2, tab3 = st.tabs(["📋 View & Manage", "➕ Add New", "✏️ Edit Client"])
+    tab1, tab2, tab3 = st.tabs(["📋 View & Manage", "➕ Add New", "✏️ Edit Listing"])
     
     with tab1:
         if not st.session_state.listings.empty:
@@ -673,6 +787,132 @@ def show_listings_page(is_admin):
             show_add_listing_form()
         else:
             st.warning("Admin only")
+    
+    with tab3:
+        if is_admin:
+            show_edit_listing_form()
+        else:
+            st.warning("Admin only")
+
+
+def show_edit_listing_form():
+    st.subheader("Edit Existing Listing")
+    
+    if st.session_state.listings.empty:
+        st.info("No listings to edit")
+        return
+    
+    # Select listing
+    listing_options = {f"{r['Property_Address']} ({r['Listing_ID']})": r['Listing_ID'] 
+                      for _, r in st.session_state.listings.iterrows()}
+    selected = st.selectbox("Select Listing to Edit", list(listing_options.keys()), key="edit_listing_sel")
+    listing_id = listing_options[selected]
+    listing = st.session_state.listings[st.session_state.listings['Listing_ID'] == listing_id].iloc[0]
+    
+    # Pre-select for dynamic updates
+    cat_temp = st.selectbox("Property Category *", ["Residential", "Commercial"],
+                           index=0 if listing['Property_Category'] == 'Residential' else 1, key="edit_lc")
+    
+    with st.form("edit_listing_form_main"):
+        st.info(f"Editing: **{listing['Property_Address']}** ({listing_id})")
+        
+        col1, col2 = st.columns(2)
+        with col1:
+            cat = cat_temp
+            if cat == "Residential":
+                ptypes = ["Apartment", "Villa", "House", "Penthouse", "Studio"]
+            else:
+                ptypes = ["Office Space", "Warehouse", "Shop/Showroom", "Land/Plot", "Industrial Unit", "Co-working Space"]
+            
+            try:
+                pidx = ptypes.index(listing['Property_Type'])
+            except:
+                pidx = 0
+            ptype = st.selectbox("Type *", ptypes, index=pidx)
+        with col2:
+            addr = st.text_input("Address *", value=listing['Property_Address'])
+            try:
+                lidx = LOCATIONS.index(listing['Location'])
+            except:
+                lidx = 0
+            loc = st.selectbox("Location *", LOCATIONS, index=lidx)
+        
+        furn = None
+        if cat == "Residential":
+            furn_opts = ["Furnished", "Semi-Furnished", "Unfurnished"]
+            try:
+                fidx = furn_opts.index(listing['Furnishing_Status'])
+            except:
+                fidx = 0
+            furn = st.selectbox("Furnishing *", furn_opts, index=fidx)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            bhk = st.text_input("BHK/Size *", value=listing['BHK'])
+        with col2:
+            curr_opts = ["₹ Rupees", "₹ Lakhs", "₹ Crores"]
+            cidx = curr_opts.index(listing['Price_Currency']) if listing['Price_Currency'] in curr_opts else 0
+            curr = st.selectbox("Currency", curr_opts, index=cidx)
+        with col3:
+            pr = st.number_input("Price *", value=float(listing['Price']))
+        
+        area = st.number_input("Area (sq ft) *", value=int(listing['Area_SqFt']))
+        amen = st.text_area("Amenities", value=listing['Amenities'])
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            bname = st.text_input("Broker Name *", value=listing['Broker_Name'])
+        with col2:
+            bcontact = st.text_input("Broker Contact *", value=listing['Broker_Contact'])
+        with col3:
+            vis_opts = ["Yes", "No"]
+            vidx = vis_opts.index(listing['Visible_To_Partner']) if listing['Visible_To_Partner'] in vis_opts else 0
+            vis = st.selectbox("Visible to Partner? *", vis_opts, index=vidx)
+        
+        partners = st.session_state.users[st.session_state.users['Role'] == 'Partner']['Full_Name'].tolist()
+        assign_opts = ["Unassigned", "Admin"] + partners
+        try:
+            aidx = assign_opts.index(listing['Assigned_To'])
+        except:
+            aidx = 0
+        assigned = st.selectbox("Assign To", assign_opts, index=aidx)
+        
+        stat_opts = ["Available", "Shown to Client", "Client Interested", "Under Negotiation", "Sold", "Not Available"]
+        try:
+            sidx = stat_opts.index(listing['Listing_Status'])
+        except:
+            sidx = 0
+        status = st.selectbox("Status", stat_opts, index=sidx)
+        
+        notes = st.text_area("Notes", value=listing['Notes'])
+        
+        if st.form_submit_button("✅ Update Listing", use_container_width=True):
+            if addr and loc and bname and bcontact and bhk:
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Property_Address'] = addr
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Location'] = loc
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Property_Category'] = cat
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Property_Type'] = ptype
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Furnishing_Status'] = furn if furn else 'N/A'
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'BHK'] = bhk
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Price'] = pr
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Price_Currency'] = curr
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Area_SqFt'] = area
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Broker_Name'] = bname
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Broker_Contact'] = bcontact
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Amenities'] = amen
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Listing_Status'] = status
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Visible_To_Partner'] = vis
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Notes'] = notes
+                st.session_state.listings.loc[st.session_state.listings['Listing_ID'] == listing_id, 'Assigned_To'] = assigned
+                
+                if st.session_state.gs_client and st.session_state.gs_config:
+                    save_to_sheets(st.session_state.gs_client, st.session_state.gs_config['listings_sheet_id'], st.session_state.listings)
+                
+                st.success(f"✅ Listing {addr} updated!")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error("❌ Fill required fields")
 
 def show_add_listing_form():
     st.subheader("Add New Listing (Independent)")
@@ -741,7 +981,7 @@ def show_add_listing_form():
 def show_deals_page():
     st.markdown('<div class="main-header">💰 Deals & Commission</div>', unsafe_allow_html=True)
     
-    tab1, tab2 = st.tabs(["📋 View Deals", "➕ Close New Deal"])
+    tab1, tab2, tab3 = st.tabs(["📋 View Deals", "➕ Close New Deal", "✏️ Edit Deal"])
     
     with tab1:
         if not st.session_state.deals.empty:
@@ -774,6 +1014,101 @@ def show_deals_page():
     
     with tab2:
         show_close_deal_form()
+    
+    with tab3:
+        show_edit_deal_form()
+
+
+def show_edit_deal_form():
+    st.subheader("Edit Deal")
+    
+    if st.session_state.deals.empty:
+        st.info("No deals to edit")
+        return
+    
+    # Select deal
+    deal_options = {f"{r['Deal_ID']} - Client: {r['Client_ID']}": r['Deal_ID'] 
+                   for _, r in st.session_state.deals.iterrows()}
+    selected = st.selectbox("Select Deal to Edit", list(deal_options.keys()), key="edit_deal_sel")
+    deal_id = deal_options[selected]
+    deal = st.session_state.deals[st.session_state.deals['Deal_ID'] == deal_id].iloc[0]
+    
+    with st.form("edit_deal_form_main"):
+        st.info(f"Editing: **{deal_id}**")
+        
+        # Client (read-only)
+        st.text_input("Client ID", value=deal['Client_ID'], disabled=True)
+        
+        # Listing (read-only)
+        st.text_input("Listing ID", value=deal['Listing_ID'], disabled=True)
+        
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            brk_owner = st.number_input("Brokerage from Owner (₹) *", value=float(deal['Brokerage_From_Owner']), min_value=0.0, step=1000.0)
+        with col2:
+            brk_client = st.number_input("Brokerage from Client (₹) *", value=float(deal['Brokerage_From_Client']), min_value=0.0, step=1000.0)
+        with col3:
+            num_brokers = st.number_input("Number of Brokers *", 
+                                         value=int(deal['Number_Of_Brokers']), 
+                                         min_value=1, max_value=10)
+        
+        # Calculate
+        total_brokerage = brk_owner + brk_client
+        per_broker = total_brokerage / num_brokers
+        your_share = per_broker * 0.90
+        partner_share = per_broker * 0.10
+        
+        st.markdown("### 📊 Updated Commission")
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.metric("Total", f"₹{total_brokerage:,.0f}")
+        with col2:
+            st.metric("Per Broker", f"₹{per_broker:,.0f}")
+        with col3:
+            st.metric("Your Share (90%)", f"₹{your_share:,.0f}")
+        with col4:
+            st.metric("Partner (10%)", f"₹{partner_share:,.0f}")
+        
+        # Partner
+        partners = st.session_state.users[st.session_state.users['Role'] == 'Partner']['Full_Name'].tolist()
+        if not partners:
+            partners = ["No partners"]
+        try:
+            pidx = partners.index(deal['Partner_Name'])
+        except:
+            pidx = 0
+        partner_name = st.selectbox("Partner *", partners, index=pidx)
+        
+        # Payment status
+        pay_opts = ["Pending", "Received", "Partial"]
+        try:
+            payidx = pay_opts.index(deal['Payment_Status'])
+        except:
+            payidx = 0
+        payment_status = st.selectbox("Payment Status", pay_opts, index=payidx)
+        
+        notes = st.text_area("Notes", value=deal['Notes'])
+        
+        if st.form_submit_button("✅ Update Deal", use_container_width=True):
+            if partner_name != "No partners":
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Brokerage_From_Owner'] = brk_owner
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Brokerage_From_Client'] = brk_client
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Total_Brokerage'] = total_brokerage
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Number_Of_Brokers'] = num_brokers
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Your_Share'] = your_share
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Partner_Share'] = partner_share
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Partner_Name'] = partner_name
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Payment_Status'] = payment_status
+                st.session_state.deals.loc[st.session_state.deals['Deal_ID'] == deal_id, 'Notes'] = notes
+                
+                if st.session_state.gs_client and st.session_state.gs_config:
+                    save_to_sheets(st.session_state.gs_client, st.session_state.gs_config['deals_sheet_id'], st.session_state.deals)
+                
+                st.success(f"✅ Deal {deal_id} updated!")
+                st.balloons()
+                st.rerun()
+            else:
+                st.error("❌ Select a partner")
 
 def show_close_deal_form():
     st.subheader("Close New Deal (Admin Only)")
@@ -1147,6 +1482,15 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
+
+
+
+
 
 
 
