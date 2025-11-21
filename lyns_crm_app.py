@@ -388,7 +388,6 @@ def login_page():
                 st.rerun()
             else:
                 st.error("❌ Invalid username or password")
-        st.info("💡 Default: username=admin, password=lyns2024")
 
 def logout():
     st.session_state.logged_in = False
@@ -1081,6 +1080,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
 
 
