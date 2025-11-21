@@ -9,6 +9,9 @@ import hashlib
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import json
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 
 st.set_page_config(page_title="Lyns Real Estate CRM", page_icon="🏠", layout="wide")
 
@@ -50,6 +53,36 @@ def init_google_sheets():
     except Exception as e:
         st.error(f"Google Sheets connection error: {e}")
         return None, None
+
+
+def send_email_notification(to_email, subject, body):
+    try:
+        # Check if email settings are configured
+        if not hasattr(st, 'secrets') or 'email' not in st.secrets:
+            return False
+        
+        smtp_server = st.secrets['email']['smtp_server']
+        smtp_port = st.secrets['email']['smtp_port']
+        sender_email = st.secrets['email']['sender_email']
+        sender_password = st.secrets['email']['sender_password']
+        
+        msg = MIMEMultipart()
+        msg['From'] = sender_email
+        msg['To'] = to_email
+        msg['Subject'] = subject
+        
+        msg.attach(MIMEText(body, 'html'))
+        
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.send_message(msg)
+        server.quit()
+        
+        return True
+    except Exception as e:
+        st.error(f"Email notification failed: {e}")
+        return False
 
 def load_from_sheets(client, sheet_id, sheet_name="Sheet1"):
     try:
@@ -218,6 +251,34 @@ def add_client(client_data):
     # Save to Google Sheets
     if st.session_state.gs_client and st.session_state.gs_config:
         save_to_sheets(st.session_state.gs_client, st.session_state.gs_config['clients_sheet_id'], st.session_state.clients)
+    
+    # Send email notification if assigned to a partner
+    if client_data['assigned_to'] != 'Unassigned' and client_data['assigned_to'] != 'Admin':
+        # Find partner email
+        partner = st.session_state.users[st.session_state.users['Full_Name'] == client_data['assigned_to']]
+        if not partner.empty:
+            partner_email = partner.iloc[0]['Email']
+            subject = f"New Client Assigned: {client_data['name']}"
+            body = f"""
+            <html>
+            <body>
+            <h2>New Client Assigned to You</h2>
+            <p>Hi {client_data['assigned_to']},</p>
+            <p>A new client has been assigned to you:</p>
+            <ul>
+            <li><strong>Client Name:</strong> {client_data['name']}</li>
+            <li><strong>Contact:</strong> {client_data['contact']}</li>
+            <li><strong>Type:</strong> {client_data['client_type']}</li>
+            <li><strong>Property:</strong> {client_data['property_category']} - {client_data['property_type']}</li>
+            <li><strong>Budget:</strong> {client_data['budget_currency']} {client_data['budget_min']} - {client_data['budget_max']}</li>
+            <li><strong>Location:</strong> {client_data['location']}</li>
+            </ul>
+            <p>Please follow up with the client.</p>
+            <p><strong>Client ID:</strong> {client_id}</p>
+            </body>
+            </html>
+            """
+            send_email_notification(partner_email, subject, body)
     return client_id
 
 def add_listing(listing_data):
@@ -1020,6 +1081,11 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+
+
+
 
 
 
